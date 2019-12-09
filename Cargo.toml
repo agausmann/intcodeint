@@ -3,6 +3,12 @@ name = "intcodeint"
 version = "0.1.0"
 authors = ["Adam Gausmann <agausmann@fastmail.com>"]
 edition = "2018"
+description = "An intcode interpreter for Advent of Code 2019"
+repository = "https://github.com/agausmann/intcodeint"
+readme = "README.md"
+keywords = ["intcode", "adventofcode", "interpreter"]
+categories = ["command-line-utilities", "emulators"]
+license = "GPL-3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
