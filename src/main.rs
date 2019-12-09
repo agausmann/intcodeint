@@ -15,7 +15,7 @@ fn main() {
 
         let mut machine = Machine::new(
             // input
-            move || lines.next().expect("not enough input").parse().expect("invalid input"),
+            lines.map(|s| s.parse().expect("invalid input")),
 
             //output
             |int| println!("{}", int),

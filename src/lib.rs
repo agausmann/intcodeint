@@ -19,7 +19,7 @@ pub struct Machine<I, O> {
 
 impl<I, O> Machine<I, O>
 where
-    I: FnMut() -> isize,
+    I: Iterator<Item = isize>,
     O: FnMut(isize),
 {
     /// Constructs a new machine with the given I/O callbacks and the initial state:
@@ -138,7 +138,8 @@ where
 
             // in
             3 => {
-                let a = (self.input)();
+                let a = self.input.next()
+                    .ok_or(Error::NotEnoughInput)?;
                 self.out(1, a)?;
                 self.ip += 2;
                 Ok(())
@@ -231,6 +232,9 @@ pub enum Error {
     /// Encountered an unknown instruction.
     IllegalInstruction(isize),
 
+    /// Not enough input was given.
+    NotEnoughInput,
+
     /// Encountered a halt instruction (99).
     Halted,
 }
@@ -241,6 +245,7 @@ impl fmt::Display for Error {
             Error::NegativePointer => write!(f, "attempted to use a negative value as a pointer"),
             Error::IllegalMode(mode) => write!(f, "illegal mode: {}", mode),
             Error::IllegalInstruction(inst) => write!(f, "illegal instruction: {}", inst),
+            Error::NotEnoughInput => write!(f, "not enough input"),
             Error::Halted => write!(f, "halted"),
         }
     }
