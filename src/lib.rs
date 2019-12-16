@@ -9,31 +9,23 @@ use std::fmt;
 
 /// An instance of an Intcode virtual machine.
 #[derive(Debug)]
-pub struct Machine<I, O> {
+pub struct Machine {
     mem: Vec<isize>,
     ip: isize,
     base: isize,
-    input: I,
-    output: O,
 }
 
-impl<I, O> Machine<I, O>
-where
-    I: Iterator<Item = isize>,
-    O: FnMut(isize),
-{
-    /// Constructs a new machine with the given I/O callbacks and the initial state:
+impl Machine {
+    /// Constructs a new machine with the initial state:
     ///
     /// - empty `mem`;
     /// - `ip` pointing to zero;
     /// - `base` set at zero.
-    pub fn new(input: I, output: O) -> Machine<I, O> {
+    pub fn new() -> Machine {
         Machine {
             mem: Vec::new(),
             ip: 0,
             base: 0,
-            input,
-            output,
         }
     }
 
@@ -60,24 +52,24 @@ where
         self.mem[start..start+values.len()].copy_from_slice(values);
     }
 
-    fn read(&mut self, i: isize) -> Result<isize, Error> {
+    fn read(&mut self, i: isize) -> Result<isize, Exit> {
         let i: usize = i.try_into()
-            .map_err(|_| Error::NegativePointer)?;
+            .map_err(|_| Exit::NegativePointer)?;
 
         self.reserve(i + 1);
         Ok(self.mem[i])
     }
 
-    fn write(&mut self, i: isize, val: isize) -> Result<(), Error> {
+    fn write(&mut self, i: isize, val: isize) -> Result<(), Exit> {
         let i: usize = i.try_into()
-            .map_err(|_| Error::NegativePointer)?;
+            .map_err(|_| Exit::NegativePointer)?;
 
         self.reserve(i + 1);
         self.mem[i] = val;
         Ok(())
     }
 
-    fn param(&mut self, offset: isize) -> Result<isize, Error> {
+    fn param(&mut self, offset: isize) -> Result<isize, Exit> {
         let opcode = self.read(self.ip)?;
         let arg = self.read(self.ip + offset)?;
         let mode = (opcode / 10isize.pow(offset as u32 + 1)) % 10;
@@ -92,11 +84,11 @@ where
             // relative pointer
             2 => self.read(self.base + arg),
             
-            unknown => Err(Error::IllegalMode(unknown)),
+            unknown => Err(Exit::IllegalMode(unknown)),
         }
     }
 
-    fn out(&mut self, offset: isize, val: isize) -> Result<(), Error> {
+    fn out(&mut self, offset: isize, val: isize) -> Result<(), Exit> {
         let opcode = self.read(self.ip)?;
         let arg = self.read(self.ip + offset)?;
         let mode = (opcode / 10isize.pow(offset as u32 + 1)) % 10;
@@ -108,12 +100,12 @@ where
             // relative pointer
             2 => self.write(self.base + arg, val),
 
-            unknown => Err(Error::IllegalMode(unknown)),
+            unknown => Err(Exit::IllegalMode(unknown)),
         }
     }
 
     /// Executes a single instruction.
-    pub fn step(&mut self) -> Result<(), Error> {
+    pub fn step(&mut self, input: Option<isize>) -> Result<(), Exit> {
         let opcode = self.read(self.ip)?;
         let instruction = opcode % 100;
 
@@ -138,8 +130,7 @@ where
 
             // in
             3 => {
-                let a = self.input.next()
-                    .ok_or(Error::NotEnoughInput)?;
+                let a = input.ok_or(Exit::Input)?;
                 self.out(1, a)?;
                 self.ip += 2;
                 Ok(())
@@ -148,9 +139,8 @@ where
             // out
             4 => {
                 let a = self.param(1)?;
-                (self.output)(a);
                 self.ip += 2;
-                Ok(())
+                Err(Exit::Output(a))
             }
 
             // jt
@@ -204,17 +194,18 @@ where
             }
 
             // halt
-            99 => Err(Error::Halted),
+            99 => Err(Exit::Halted),
 
-            unknown => Err(Error::IllegalInstruction(unknown)),
+            unknown => Err(Exit::IllegalInstruction(unknown)),
         }
     }
 
     /// Runs the program until the first error is encountered.
-    pub fn run(&mut self) -> Error {
+    pub fn run(&mut self, mut input: Option<isize>) -> Exit {
         loop {
-            if let Err(e) = self.step() {
-                return e;
+            match self.step(input.take()) {
+                Ok(_) => {}
+                Err(e) => return e,
             }
         }
     }
@@ -222,7 +213,7 @@ where
 
 /// Errors that can occur during execution.
 #[derive(Debug)]
-pub enum Error {
+pub enum Exit {
     /// Attempted to use a negative value as a pointer.
     NegativePointer,
 
@@ -232,21 +223,25 @@ pub enum Error {
     /// Encountered an unknown instruction.
     IllegalInstruction(isize),
 
-    /// Not enough input was given.
-    NotEnoughInput,
+    /// The program encountered an `in` instruction and needs to take input.
+    Input,
+    
+    /// The program encountered an `out` instruction and needs to return output.
+    Output(isize),
 
     /// Encountered a halt instruction (99).
     Halted,
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for Exit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::NegativePointer => write!(f, "attempted to use a negative value as a pointer"),
-            Error::IllegalMode(mode) => write!(f, "illegal mode: {}", mode),
-            Error::IllegalInstruction(inst) => write!(f, "illegal instruction: {}", inst),
-            Error::NotEnoughInput => write!(f, "not enough input"),
-            Error::Halted => write!(f, "halted"),
+            Exit::NegativePointer => write!(f, "attempted to use a negative value as a pointer"),
+            Exit::IllegalMode(mode) => write!(f, "illegal mode: {}", mode),
+            Exit::IllegalInstruction(inst) => write!(f, "illegal instruction: {}", inst),
+            Exit::Input => write!(f, "need input"),
+            Exit::Output(a) => write!(f, "got output: {}", a),
+            Exit::Halted => write!(f, "halted"),
         }
     }
 }

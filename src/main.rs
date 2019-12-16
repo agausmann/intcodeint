@@ -1,6 +1,6 @@
 use std::io::{stdin, BufRead};
 
-use intcodeint::Machine;
+use intcodeint::{Machine, Exit};
 
 fn main() {
     let stdin = stdin();
@@ -13,15 +13,28 @@ fn main() {
             .map(|s| s.parse().expect("invalid code"))
             .collect();
 
-        let mut machine = Machine::new(
-            // input
-            lines.map(|s| s.parse().expect("invalid input")),
-
-            //output
-            |int| println!("{}", int),
-        );
+        let mut machine = Machine::new();
         machine.copy(0, &nums);
-        let result = machine.run();
-        eprintln!("terminated: {}", result);
+        let mut input = None;
+        loop {
+            let exit = machine.run(input.take());
+            match exit {
+                Exit::Input => {
+                    if let Some(line) = lines.next() {
+                        input = Some(line.parse().expect("invalid input"));
+                    } else {
+                        eprintln!("terminated: {}", exit);
+                        break;
+                    }
+                }
+                Exit::Output(a) => {
+                    println!("{}", a);
+                }
+                _ => {
+                    eprintln!("terminated: {}", exit);
+                    break;
+                }
+            }
+        }
     }
 }
