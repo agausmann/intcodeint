@@ -6,6 +6,7 @@
 
 use std::convert::TryInto;
 use std::fmt;
+use std::thread::{self, JoinHandle};
 
 /// An instance of an Intcode virtual machine.
 #[derive(Debug)]
@@ -201,13 +202,46 @@ impl Machine {
     }
 
     /// Runs the program until the first error is encountered.
-    pub fn run(&mut self, mut input: Option<isize>) -> Exit {
+    pub fn resume(&mut self, mut input: Option<isize>) -> Exit {
         loop {
             match self.step(input.take()) {
                 Ok(_) => {}
                 Err(e) => return e,
             }
         }
+    }
+
+    /// Runs the program using the given I/O interfaces.
+    pub fn run<I, O>(&mut self, input: I, output: O) -> Exit
+    where
+        I: IntoIterator<Item = isize>,
+        O: FnMut(isize),
+    {
+        let mut input = input.into_iter().peekable();
+        let mut output = output;
+        let mut next_input = None;
+        loop {
+            match self.resume(next_input.take()) {
+                Exit::Input if input.peek().is_some() => {
+                    next_input = input.next();
+                }
+                Exit::Output(a) => {
+                    output(a);
+                }
+                other => return other,
+            }
+        }
+    }
+
+    pub fn spawn<I, O>(mut self, input: I, output: O) -> JoinHandle<(Machine, Exit)>
+    where
+        I: IntoIterator<Item = isize> + Send + 'static,
+        O: FnMut(isize) + Send + 'static,
+    {
+        thread::spawn(move || {
+            let result = self.run(input, output);
+            (self, result)
+        })
     }
 }
 
