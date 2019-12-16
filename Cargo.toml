@@ -1,6 +1,6 @@
 [package]
 name = "intcodeint"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Adam Gausmann <agausmann@fastmail.com>"]
 edition = "2018"
 description = "An intcode interpreter for Advent of Code 2019"
