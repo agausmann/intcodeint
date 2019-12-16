@@ -30,6 +30,12 @@ impl Machine {
         }
     }
 
+    pub fn with_program(program: &[isize]) -> Machine {
+        let mut machine = Machine::new();
+        machine.copy(0, program);
+        machine
+    }
+
     /// An immutable view into the virtual machine's memory.
     pub fn mem(&self) -> &[isize] {
         &self.mem
@@ -278,4 +284,8 @@ impl fmt::Display for Exit {
             Exit::Halted => write!(f, "halted"),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
 }
